@@ -1,0 +1,24 @@
+{
+  "name": "macrogracesystems",
+  "owner": {
+    "name": "MacroGrace Systems",
+    "url": "https://macrogracesystems.com"
+  },
+  "metadata": {
+    "description": "Agent Skills from MacroGrace Systems",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "agentic-build-intro",
+      "description": "Start screen, layout scan and cursor-agent build intro for static sites",
+      "source": "./",
+      "strict": false,
+      "author": {
+        "name": "Marc Dandoy"
+      },
+      "license": "MIT",
+      "skills": ["./skills/agentic-build-intro"]
+    }
+  ]
+}
