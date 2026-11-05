@@ -2,11 +2,59 @@
   var doc = document;
   var root = doc.documentElement;
   var body = doc.body;
-  if (!body || !root.animate) return;
+  var script = doc.currentScript;
+  if (!body || !root.animate) {
+    root.classList.remove('lx-pre');
+    return;
+  }
+
+  var ds = (script && script.dataset) || {};
+  var user = window.AgenticBuildIntro || {};
+
+  function opt(k, d) {
+    if (user[k] != null) return user[k];
+    if (ds[k] != null && ds[k] !== '') return ds[k];
+    return d;
+  }
+
+  function list(v) {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string' && v.trim()) return v.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    return null;
+  }
+
+  var CFG = {
+    name: String(opt('name', doc.title || '')).trim(),
+    initials: opt('initials', ''),
+    title: String(opt('title', '')).trim(),
+    location: String(opt('location', '')).trim(),
+    timezone: opt('timezone', ''),
+    clock: String(opt('clock', 'true')) !== 'false',
+    cta: opt('cta', 'Initiate Portfolio Build'),
+    skip: opt('skip', 'Skip to site'),
+    agents: parseInt(opt('agents', ''), 10),
+    colors: list(opt('colors', '')),
+    holdUntil: opt('holdUntil', ''),
+    rampFrom: opt('rampFrom', ''),
+    rampMid: parseFloat(opt('rampMid', 1.2)) || 1,
+    rampEnd: parseFloat(opt('rampEnd', 1.5)) || 1,
+    replay: String(opt('replay', 'true')) !== 'false',
+    replayLabel: opt('replayLabel', 'Replay animation'),
+    replayBefore: opt('replayBefore', '')
+  };
+  if (!CFG.initials) {
+    CFG.initials = CFG.name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(function (w) { return w.charAt(0); })
+      .join('')
+      .toUpperCase();
+  }
 
   var narrow = window.matchMedia('(max-width: 820px)').matches || window.matchMedia('(hover: none) and (pointer: coarse)').matches;
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var AGENTS = narrow ? 14 : 30;
+  var AGENTS = CFG.agents > 0 ? (narrow ? Math.max(4, Math.round(CFG.agents / 2)) : CFG.agents) : narrow ? 14 : 30;
   var SKIP = { SCRIPT: 1, STYLE: 1, LINK: 1, META: 1, BR: 1, SOURCE: 1, TRACK: 1, NOSCRIPT: 1, TEMPLATE: 1, SVG: 1, PATH: 1, HR: 1, WBR: 1 };
   var REPLACED = { IMG: 1, VIDEO: 1, CANVAS: 1, IFRAME: 1 };
   var CONTROL = { BUTTON: 1, INPUT: 1, TEXTAREA: 1, SELECT: 1 };
@@ -25,7 +73,7 @@
   var vh = window.innerHeight;
 
   function isOverlay(n) {
-    return n.id === 'lx-build' || n.classList.contains('lx-scan');
+    return n.id === 'lx-build' || n.id === 'lx-replay' || n.id === 'lx-rslot' || n.classList.contains('lx-scan');
   }
 
   function offsetOf(n) {
@@ -99,7 +147,7 @@
     plan = found;
   }
 
-  var COLORS = ['#ff28ea', '#ff5fd2', '#ffd075', '#ff9a3c', '#cbceea', '#a79bff', '#22d3ee', '#a3e635', '#fde047', '#ff4d5e'];
+  var COLORS = CFG.colors || ['#ff28ea', '#ff5fd2', '#ffd075', '#ff9a3c', '#cbceea', '#a79bff', '#22d3ee', '#a3e635', '#fde047', '#ff4d5e', '#ff3d7f', '#38bdf8'];
 
   function rnd(a, b) {
     return a + Math.random() * (b - a);
@@ -132,6 +180,10 @@
   var bConc = 0.7;
   var bHurry = 0;
   var bWait = 0;
+  var bSp = 1;
+  var bVT = 0;
+  var bY2 = 0;
+  var bY3 = 0;
   var bPos = 0;
   var bVel = 0;
   var bGoal = 0;
@@ -147,11 +199,10 @@
 
   function wantBuild() {
     var q = location.search;
-    if (/[?&]build=0/.test(q) || /[?&]view=normal/.test(q) || reduced) return false;
+    if (/[?&]build=0/.test(q) || reduced) return false;
     if (/[?&]build=1/.test(q)) return true;
-    if (/[?&]view=layers/.test(q)) return false;
     try {
-      if (sessionStorage.getItem(BKEY)) return false;
+      if (sessionStorage.getItem(BKEY) && (function(){try{var n=performance.getEntriesByType('navigation')[0];if(n&&n.type==='reload')return 0;if(n&&n.type==='back_forward')return 1;var r=document.referrer;return r&&new URL(r).origin===location.origin?1:0}catch(e){return 0}})()) return false;
     } catch (e) {}
     return true;
   }
@@ -167,7 +218,7 @@
     return b;
   }
 
-  var PALETTE = ['#ff5fa2', '#ffb347', '#ffd075', '#ff28ea', '#cbceea', '#a99bff', '#7ee0c3', '#79c8ff', '#ff8a6b', '#f3b6ff'];
+  var PALETTE = CFG.colors || ['#ff5fa2', '#ffb347', '#ffd075', '#ff28ea', '#cbceea', '#a99bff', '#7ee0c3', '#79c8ff', '#ff8a6b', '#f3b6ff'];
   var PTR = '<svg viewBox="0 0 18 20"><path d="M1.6 1.4 16 9.3 9.5 10.8 6.5 17.6Z"/></svg>';
 
   function wait(ms) {
@@ -344,7 +395,8 @@
       if (it) it.label = label;
       var n = el('div', '', 'gx-sa');
       n.style.setProperty('--c', color);
-      n.innerHTML = '<span class="gx-glow"></span>' + CURSOR.replace('CLR', color) + '<span class="gx-stag">' + label + '</span>';
+      n.innerHTML = '<span class="gx-glow"></span>' + CURSOR.replace('CLR', color) + '<span class="gx-stag"></span>';
+      n.lastChild.textContent = label;
       n.style.opacity = '0';
       layer.appendChild(n);
       var spot = hasSpot
@@ -538,6 +590,16 @@
       set.add(it.el);
     });
     var list = plan.slice();
+    var hs = CFG.holdUntil ? doc.querySelector(CFG.holdUntil) : null;
+    var hdrY = 0;
+    if (hs) hdrY = hs.getBoundingClientRect().top + sy;
+    else {
+      doc.querySelectorAll('header, nav, [role="banner"]').forEach(function (n) {
+        if (n.closest('#lx-gate')) return;
+        var q = n.getBoundingClientRect();
+        if (q.height > 0 && q.top + sy < vh) hdrY = Math.max(hdrY, q.bottom + sy);
+      });
+    }
     list.forEach(function (it, i) {
       var r = it.el.getBoundingClientRect();
       it.top = r.top + sy;
@@ -555,7 +617,18 @@
       it.typeDur = clamp(it.chars * 0.015 + 0.2, 0.4, 1.4);
       it.state = 0;
       it.prep = false;
+      it.hdr = it.top < hdrY - 1 && !(hs && hs.contains(it.el));
     });
+    var rf = CFG.rampFrom ? doc.querySelectorAll(CFG.rampFrom) : [];
+    var docH = Math.max(root.scrollHeight, body.scrollHeight);
+    if (rf.length) {
+      bY3 = rf[0].getBoundingClientRect().top + sy;
+      bY2 = Math.max(0, bY3 - vh * 0.8);
+    } else {
+      bY2 = docH * 0.35;
+      bY3 = docH * 0.5;
+    }
+    if (bY3 <= bY2) bY3 = bY2 + 1;
     list.sort(function (a, b) {
       return a.eff - b.eff || a.depth - b.depth || a.ord - b.ord;
     });
@@ -563,6 +636,7 @@
   }
 
   function beginBuild() {
+    hideReplay();
     clearTimeout(introTimer);
     skipEvents.forEach(function (ev) {
       window.removeEventListener(ev, introSkip, true);
@@ -592,7 +666,7 @@
     root.classList.remove('lx-pre');
     bOverlay = el('div', 'lx-build');
     body.appendChild(bOverlay);
-    var cols = shuffled(COLORS.concat(['#ff3d7f', '#38bdf8']));
+    var cols = shuffled(COLORS);
     bAgents = [];
     for (var i = 0; i < AGENTS; i++) {
       var n = el('div', '', 'lx-c');
@@ -618,6 +692,8 @@
     bSetY = bPos;
     bLast = 0;
     bStart = performance.now() / 1000;
+    bSp = 1;
+    bVT = 0;
     leaveGate('gx-fade');
     skipEvents.forEach(function (ev) {
       window.addEventListener(ev, skipBuild, { passive: true, capture: true });
@@ -660,35 +736,86 @@
   function prepTexts(it) {
     it.prep = true;
     it.texts.forEach(function (t) {
-      var g = doc.createElement('span');
-      g.className = 'lx-g';
-      g.textContent = t.full;
+      var w = doc.createElement('span');
+      w.className = 'lx-tw';
+      t.toks = [];
+      var re = /\S+\s*|\s+/g;
+      var m;
+      while ((m = re.exec(t.full))) {
+        var sp = doc.createElement('span');
+        sp.className = 'lx-g';
+        sp.textContent = m[0];
+        w.appendChild(sp);
+        t.toks.push({ s: m[0], a: m.index, n: sp, st: 0 });
+      }
       t.n.data = '';
-      t.n.parentNode.insertBefore(g, t.n.nextSibling);
-      t.ghost = g;
+      t.n.parentNode.insertBefore(w, t.n.nextSibling);
+      t.ghost = w;
       t.k = 0;
     });
     it.caret = el('span', '', 'lx-caret');
     it.caret.style.setProperty('--c', it.ag ? it.ag.c : '#fff');
   }
 
+  function setTok(tk, kk, caret) {
+    var d = kk - tk.a;
+    if (d <= 0) {
+      if (tk.st !== 0) {
+        tk.st = 0;
+        tk.n.className = 'lx-g';
+        tk.n.textContent = tk.s;
+      }
+      return;
+    }
+    if (d >= tk.s.length) {
+      if (tk.st !== 2) {
+        tk.st = 2;
+        tk.n.className = '';
+        tk.n.textContent = tk.s;
+      }
+      return;
+    }
+    tk.st = 1;
+    tk.n.className = '';
+    tk.n.textContent = tk.s.slice(0, d);
+    tk.n.appendChild(caret);
+    var g = doc.createElement('span');
+    g.className = 'lx-g';
+    g.textContent = tk.s.slice(d);
+    tk.n.appendChild(g);
+  }
+
   function typeTo(it, p) {
     var k = Math.floor(p * it.chars);
     var off = 0;
-    var active = null;
+    var placed = false;
     for (var i = 0; i < it.texts.length; i++) {
       var t = it.texts[i];
       var kk = clamp(k - off, 0, t.len);
       if (kk !== t.k) {
+        for (var j = 0; j < t.toks.length; j++) {
+          var tk = t.toks[j];
+          if (tk.a + tk.s.length >= Math.min(kk, t.k) && tk.a <= Math.max(kk, t.k)) setTok(tk, kk, it.caret);
+        }
         t.k = kk;
-        t.n.data = t.full.slice(0, kk);
-        t.ghost.textContent = t.full.slice(kk);
       }
-      if (!active && kk < t.len) active = t;
+      if (!placed && kk < t.len) {
+        placed = true;
+        var cur = null;
+        for (var q = 0; q < t.toks.length; q++) {
+          if (t.toks[q].a + t.toks[q].s.length > kk) {
+            cur = t.toks[q];
+            break;
+          }
+        }
+        if (cur && cur.st !== 1 && it.caret.nextSibling !== cur.n) cur.n.parentNode.insertBefore(it.caret, cur.n);
+      }
       off += t.len;
     }
-    if (!active) active = it.texts[it.texts.length - 1];
-    if (active && it.caret.previousSibling !== active.n) active.n.parentNode.insertBefore(it.caret, active.n.nextSibling);
+    if (!placed && it.texts.length) {
+      var lg = it.texts[it.texts.length - 1].ghost;
+      if (it.caret.parentNode !== lg || it.caret.nextSibling) lg.appendChild(it.caret);
+    }
   }
 
   function restoreTexts(it) {
@@ -712,12 +839,13 @@
         { opacity: it.base, clipPath: 'inset(0 0 100% 0)', filter: 'grayscale(1) contrast(1.6) brightness(1.4)' },
         { opacity: it.base, clipPath: 'inset(0 0 0% 0)', filter: 'grayscale(1) contrast(1.6) brightness(1.4)', offset: 0.7 },
         { opacity: it.base, clipPath: 'inset(0 0 0% 0)', filter: 'none' }
-      ], { duration: 1700, easing: 'steps(14, end)' });
+      ], { duration: Math.round(1133 / bSp), easing: 'steps(14, end)' });
       var sc = el('div', '', 'lx-scan');
       sc.style.cssText = 'left:' + (r.left + window.scrollX) + 'px;top:' + (r.top + window.scrollY) + 'px;width:' + r.width + 'px;height:' + r.height + 'px';
       if (it.ag) sc.style.setProperty('--c', it.ag.c);
+      sc.style.setProperty('--sp', bSp.toFixed(3));
       body.appendChild(sc);
-      setTimeout(function () { sc.remove(); }, 1800);
+      setTimeout(function () { sc.remove(); }, Math.round(1200 / bSp));
       return;
     }
     it.el.animate([{ opacity: 0 }, { opacity: it.base }], { duration: it.kind === 'box' ? 380 : 200, easing: 'ease-out' });
@@ -796,6 +924,12 @@
     var rdt = Math.min(0.05, bLast ? now - bLast : 0.016);
     bLast = now;
     var el_s = now - bStart;
+    var cy = bPos + vh * 0.6;
+    var yF = Math.max(bY3 + 1, maxScroll() + vh * 0.6);
+    var tsp = cy <= bY2 ? 1 : cy < bY3 ? 1 + (CFG.rampMid - 1) * easeIO((cy - bY2) / (bY3 - bY2)) : CFG.rampMid + (CFG.rampEnd - CFG.rampMid) * easeIO(clamp((cy - bY3) / (yF - bY3), 0, 1));
+    bSp += (tsp - bSp) * Math.min(1, rdt * 3);
+    rdt *= bSp;
+    bVT += rdt;
     if (el_s > bCap) {
       finishBuild(true);
       return;
@@ -809,7 +943,7 @@
     var len = bItems.length;
 
     var frac = len ? bDone / len : 1;
-    var lag = clamp(el_s / bGoalT, 0, 1) - frac;
+    var lag = clamp(bVT / bGoalT, 0, 1) - frac;
     bConc = clamp(bConc + (lag > 0.03 ? 0.6 : lag < -0.05 ? -0.4 : 0) * rdt, 0.35, 1);
     bHurry = clamp((lag - 0.03) / 0.15, 0, 1);
     var maxActive = Math.max(3, Math.round(AGENTS * bConc));
@@ -902,7 +1036,7 @@
         a.t += rdt;
         a.x = clamp(r.right, 4, vw - 22);
         a.y = clamp(r.bottom, 4, vh - 30);
-        var fd = it.kind === 'text' ? it.typeDur : it.kind === 'media' ? 1.7 : 0.4;
+        var fd = it.kind === 'text' ? it.typeDur : it.kind === 'media' ? 1.133 : 0.4;
         if (it.kind === 'text') typeTo(it, Math.min(1, a.t / fd));
         if (a.t >= fd * (it.kind === 'media' ? 0.7 : 1)) it.settled = true;
         if (a.t >= fd + (it.kind === 'text' ? 0.42 - bHurry * 0.2 : 0.1)) {
@@ -958,6 +1092,12 @@
       var frr = rects.get(fr) || fr.el.getBoundingClientRect();
       var cap = frr.top + sy + Math.min(frr.height, vh) * (fr.kind === 'media' ? 0.65 : fr.kind === 'box' ? 0.5 : 0.4) - vh * 0.03;
       want = Math.min(want, cap);
+    }
+    for (var hi = 0; hi < len; hi++) {
+      if (bItems[hi].hdr && bItems[hi].state !== 3) {
+        want = 0;
+        break;
+      }
     }
     want = clamp(want, 0, maxS);
     if (want > bGoal + 8 || (want > bGoal && want >= maxS - 1)) bGoal = want;
@@ -1026,8 +1166,70 @@
       bOverlay.remove();
       bOverlay = null;
       root.classList.remove('lx-build');
+      showReplay();
     }
     requestAnimationFrame(dloop);
+  }
+
+  var replayBtn = null;
+
+  function replayOn() {
+    if (!replayBtn) return;
+    replayBtn.classList.add('lx-rp-on');
+  }
+
+  function replaySlot() {
+    var sl = doc.getElementById('lx-rslot');
+    if (sl) return sl;
+    sl = el('div', 'lx-rslot');
+    var ends = doc.querySelectorAll(CFG.replayBefore || 'footer, [role="contentinfo"]');
+    var end = ends[ends.length - 1];
+    if (end) end.parentNode.insertBefore(sl, end);
+    else body.appendChild(sl);
+    return sl;
+  }
+
+  function showReplay() {
+    if (replayBtn || building || reduced || !CFG.replay) return;
+    replayBtn = el('button', 'lx-replay', 'lx-replay');
+    replayBtn.type = 'button';
+    replayBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4M2.5 2.5v3h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    replayBtn.appendChild(doc.createTextNode(CFG.replayLabel));
+    replaySlot().appendChild(replayBtn);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(replayOn);
+    });
+    replayBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      replay();
+    });
+  }
+
+  function hideReplay() {
+    if (!replayBtn) return;
+    var b = replayBtn;
+    replayBtn = null;
+    b.classList.remove('lx-rp-on');
+    b.disabled = true;
+    setTimeout(function () {
+      b.remove();
+    }, 400);
+  }
+
+  function replay() {
+    if (building) return;
+    hideReplay();
+    var t0 = performance.now();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    function waitTop() {
+      if (window.scrollY > 1 && performance.now() - t0 < 2500) {
+        requestAnimationFrame(waitTop);
+        return;
+      }
+      window.scrollTo(0, 0);
+      setTimeout(beginBuild, 120);
+    }
+    requestAnimationFrame(waitTop);
   }
 
   window.addEventListener('resize', function () {
@@ -1035,21 +1237,25 @@
     vh = window.innerHeight;
   });
 
-  if (wantBuild()) showGate();
+  if (wantBuild()) {
+    replaySlot();
+    showGate();
+  }
   else root.classList.remove('lx-pre');
 
   function showGate() {
     root.classList.add('lx-pre');
     var g = el('section', 'lx-gate', 'lx-gate');
     g.setAttribute('aria-label', 'Start screen');
+    g.setAttribute('role', 'dialog');
     var agent = function (cls, c, label) {
       return '<div class="gx-agent ' + cls + '" style="--c:' + c + '">' + PTR + '<span class="gx-tag">' + label + '</span></div>';
     };
     g.innerHTML =
       '<div class="gx-bg" aria-hidden="true"><span class="gx-blob gx-blob-a"></span><span class="gx-blob gx-blob-b"></span></div>' +
       '<div class="gx-veil" aria-hidden="true"></div>' +
-      '<header class="gx-bar"><div class="gx-mark" aria-hidden="true">MD</div>' +
-      '<div class="gx-loc"><span class="gx-dot" aria-hidden="true"></span><span>Houston, TX</span><span class="gx-rule" aria-hidden="true"></span><time class="gx-clock" aria-hidden="true"></time></div></header>' +
+      '<header class="gx-bar"><div class="gx-mark" aria-hidden="true"></div>' +
+      '<div class="gx-loc"><span class="gx-dot" aria-hidden="true"></span><span class="gx-place"></span><span class="gx-rule" aria-hidden="true"></span><time class="gx-clock" aria-hidden="true"></time></div></header>' +
       '<div class="gx-ambient" aria-hidden="true">' +
       agent('gx-a1', '#ffd075', 'Grid') +
       agent('gx-a2', '#ff28ea', 'Motion') +
@@ -1060,13 +1266,13 @@
       '<span class="gx-selbox" aria-hidden="true"></span>' +
       '<span class="gx-hd gx-tl" aria-hidden="true"></span><span class="gx-hd gx-tr" aria-hidden="true"></span><span class="gx-hd gx-bl" aria-hidden="true"></span><span class="gx-hd gx-br" aria-hidden="true"></span>' +
       '<span class="gx-dims" aria-hidden="true"><b>H1</b><span class="gx-dimval"></span></span>' +
-      '<h1 class="gx-title">Marc Dandoy</h1>' +
+      '<h1 class="gx-title"></h1>' +
       '<div class="gx-agent" style="--c:#ff5fa2" aria-hidden="true"><div class="gx-anim">' + PTR + '<span class="gx-tag">Lead</span></div></div></div>' +
-      '<p class="gx-role"><span class="gx-g">Agentic Product Design Engineer</span><span class="gx-caret" aria-hidden="true"></span>' +
+      '<p class="gx-role"><span class="gx-g"></span><span class="gx-caret" aria-hidden="true"></span>' +
       '<span class="gx-agent" style="--c:#ffb347" aria-hidden="true">' + PTR + '<span class="gx-tag">Type</span></span></p>' +
       '<div class="gx-actions">' +
-      '<button class="gx-btn gx-primary" type="button"><svg width="16" height="18" viewBox="0 0 18 20" aria-hidden="true"><path d="M1.6 1.4 16 9.3 9.5 10.8 6.5 17.6Z" fill="#1c1735"/></svg>Initiate Portfolio Build<span class="gx-kbd" aria-hidden="true">Enter</span></button>' +
-      '<button class="gx-btn gx-ghost" type="button">Skip to site<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
+      '<button class="gx-btn gx-primary" type="button"><svg width="16" height="18" viewBox="0 0 18 20" aria-hidden="true"><path d="M1.6 1.4 16 9.3 9.5 10.8 6.5 17.6Z" fill="currentColor"/></svg><span class="gx-cta"></span><span class="gx-kbd" aria-hidden="true">Enter</span></button>' +
+      '<button class="gx-btn gx-ghost" type="button"><span class="gx-skip"></span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
       '</div></div>' +
       '<div class="gx-frame" aria-hidden="true">' +
       '<span class="gx-corner gx-ctl"></span><span class="gx-corner gx-ctr"></span><span class="gx-corner gx-cbl"></span><span class="gx-corner gx-cbr"></span>' +
@@ -1075,15 +1281,43 @@
       '<div class="gx-ripple" aria-hidden="true"></div><div class="gx-core" aria-hidden="true"></div>' +
       '<div class="gx-agents" aria-hidden="true"></div>' +
       '<div class="gx-status" role="status" aria-live="polite"><span class="gx-spin" aria-hidden="true"></span><span class="gx-txt">Scanning page</span></div>';
+    var put = function (sel, text) {
+      var n = g.querySelector(sel);
+      if (n) n.textContent = text;
+      return n;
+    };
+    put('.gx-mark', CFG.initials);
+    put('.gx-title', CFG.name);
+    put('.gx-g', CFG.title);
+    put('.gx-cta', CFG.cta);
+    put('.gx-skip', CFG.skip);
+    put('.gx-place', CFG.location);
+    if (!CFG.name) g.querySelector('.gx-sel').hidden = true;
+    if (!CFG.title) g.querySelector('.gx-role').hidden = true;
+    if (!CFG.location) {
+      g.querySelector('.gx-place').hidden = true;
+      g.querySelector('.gx-rule').hidden = true;
+    }
+    if (!CFG.clock) {
+      g.querySelector('.gx-clock').hidden = true;
+      g.querySelector('.gx-rule').hidden = true;
+    }
+    if (!CFG.location && !CFG.clock) g.querySelector('.gx-loc').hidden = true;
+    if (!CFG.initials) g.querySelector('.gx-mark').hidden = true;
     root.appendChild(g);
 
     var clock = g.querySelector('.gx-clock');
-    var fmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+    var fmt;
+    try {
+      fmt = new Intl.DateTimeFormat('en-US', CFG.timezone ? { hour: 'numeric', minute: '2-digit', timeZone: CFG.timezone } : { hour: 'numeric', minute: '2-digit' });
+    } catch (e) {
+      fmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
     function tick() {
       clock.textContent = fmt.format(new Date());
     }
     tick();
-    var clockTimer = setInterval(tick, 15000);
+    var clockTimer = CFG.clock ? setInterval(tick, 15000) : 0;
     var title = g.querySelector('.gx-title');
     var dimval = g.querySelector('.gx-dimval');
     var ro = null;
