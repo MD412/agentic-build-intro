@@ -8,6 +8,8 @@ Live example: https://dandoy-me.vercel.app/?build=1
 
 Repo: https://github.com/MD412/agentic-build-intro
 
+Now part of a family of intros: https://github.com/MD412/macrograce-intros
+
 ## Install for agents
 
 ```bash
