@@ -170,7 +170,9 @@
   var bStart = 0;
   var bLast = 0;
   var bSpeed = 1;
-  var bCap = 24;
+  var bCap = 45;
+  var bBoost = 1;
+  var bGoalT = 22;
   var bScroll = 0;
   var bGoal = null;
   var bReduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -628,8 +630,10 @@
     syncWires();
     bItems = list;
     var target = narrow ? 8 : 14;
-    bSpeed = clamp(bEst / AGENTS / target, 1, 2);
-    bCap = narrow ? 18 : 20;
+    bSpeed = clamp(bEst / AGENTS / target, 1, 1.4);
+    bCap = 45;
+    bBoost = 1;
+    bGoalT = narrow ? 20 : 23;
     try {
       sessionStorage.setItem(BKEY, '1');
     } catch (e) {}
@@ -798,7 +802,10 @@
       finishBuild(true);
       return;
     }
-    var boost = 1;
+    var due = clamp((el_s - 1) / (bGoalT - 2), 0, 1);
+    var frac = bItems.length ? bDone / bItems.length : 1;
+    bBoost = clamp(bBoost + (frac < due - 0.02 ? 0.7 : frac > due + 0.04 ? -0.5 : 0) * rdt, 1, 3.2);
+    var boost = bBoost;
     var dt = rdt * bSpeed * boost;
     var sy = window.scrollY;
     var maxS = Math.max(0, root.scrollHeight - vh);
@@ -812,7 +819,7 @@
       if (a.st === 0 && !((a.rest || 0) > 0)) {
         while (bNext < bItems.length && bItems[bNext].state !== 0) bNext++;
         var nx = bItems[bNext];
-        if (nx && nx.top < sy + vh * 0.9) {
+        if (nx && nx.top < sy + vh * (1 + (bBoost - 1) * 0.35)) {
           nx.state = 1;
           nx.ag = a;
           a.it = nx;
