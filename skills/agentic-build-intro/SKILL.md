@@ -45,7 +45,8 @@ A start screen, a scan of the real page, then a build of the real page by labele
 6. **Keep these behaviors.**
    - Boxes drag out with handles and W x H labels, text types with a caret, guide lines flash while agents work.
    - Images reveal over about 1.7s with a stepped top-down wipe, scan line, faint stripes and a grayscale to color settle.
-   - Follow is on by default: as each element starts building, the page scrolls smoothly so the active build sits about 30% from the top of the viewport, following the agents down. It never scrolls back to the top at the end. With reduced motion it jumps instead of easing.
+   - Pacing defaults are smooth but brisk, all with a soft ease-in-out: cursors travel 0.5 to 0.7s, boxes drag out over 0.6 to 0.8s, text types at about 15ms per character with long blocks capped near 1.4s, and each agent pauses about 150ms between tasks. A desktop build runs about 12 to 15 seconds and is capped at 20.
+   - Follow is on by default: when the next build target falls below about 65% of the viewport, the page eases down in one slow move so the work sits about 30% from the top. It never scrolls back to the top at the end. With reduced motion it jumps instead of easing.
    - Runs once per session. `?build=1` replays, `?build=0` skips. Enter starts, Esc skips the gate; wheel, click, touch or any key skips a running intro.
    - Works down to 390px wide with fewer agents on phones. `prefers-reduced-motion` skips the intro.
 7. **Code rules.** No code comments, no em dashes in copy, no AI-generated human figures.

@@ -172,6 +172,7 @@
   var bSpeed = 1;
   var bCap = 24;
   var bScroll = 0;
+  var bGoal = null;
   var bReduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   var bDone = 0;
   var bGuides = 0;
@@ -590,7 +591,7 @@
         return s + t.len;
       }, 0);
       it.kind = REPLACED[it.el.tagName] ? 'media' : it.chars ? 'text' : 'box';
-      it.typeDur = clamp(it.chars / (narrow ? 120 : 90), 0.35, 1.8);
+      it.typeDur = clamp(it.chars * 0.015 + 0.2, 0.4, 1.4);
       it.state = 0;
       it.prep = false;
       est += 0.7 + (it.kind === 'text' ? it.typeDur + 0.45 : 0.55);
@@ -627,8 +628,8 @@
     syncWires();
     bItems = list;
     var target = narrow ? 8 : 14;
-    bSpeed = clamp((bEst / AGENTS / target) * 1.5, 1, 3.5);
-    bCap = narrow ? 14 : 24;
+    bSpeed = clamp(bEst / AGENTS / target, 1, 2);
+    bCap = narrow ? 18 : 20;
     try {
       sessionStorage.setItem(BKEY, '1');
     } catch (e) {}
@@ -660,6 +661,7 @@
     bDone = 0;
     bLive = [];
     bScroll = 0;
+    bGoal = null;
     bLast = 0;
     bStart = performance.now() / 1000;
     leaveGate('gx-fade');
@@ -796,7 +798,7 @@
       finishBuild(true);
       return;
     }
-    var boost = 1 + clamp((el_s - bCap * 0.6) / (bCap * 0.2), 0, 1) * 2.5;
+    var boost = 1;
     var dt = rdt * bSpeed * boost;
     var sy = window.scrollY;
     var maxS = Math.max(0, root.scrollHeight - vh);
@@ -806,10 +808,11 @@
 
     for (var ai = 0; ai < bAgents.length; ai++) {
       var a = bAgents[ai];
-      if (a.st === 0) {
+      if (a.st === 0 && (a.rest || 0) > 0) a.rest -= rdt;
+      if (a.st === 0 && !((a.rest || 0) > 0)) {
         while (bNext < bItems.length && bItems[bNext].state !== 0) bNext++;
         var nx = bItems[bNext];
-        if (nx && nx.top < sy + vh * 0.8) {
+        if (nx && nx.top < sy + vh * 0.9) {
           nx.state = 1;
           nx.ag = a;
           a.it = nx;
@@ -824,7 +827,7 @@
           bLive.push(nx);
           var dx = rr.left - a.x;
           var dy = rr.top - a.y;
-          a.dur = clamp(Math.sqrt(dx * dx + dy * dy) / 2000, 0.16, 0.45);
+          a.dur = clamp(Math.sqrt(dx * dx + dy * dy) / 1500, 0.5, 0.7);
           nx.box = null;
         }
       }
@@ -852,14 +855,14 @@
         if (p1 >= 1) {
           a.st = 2;
           a.t = 0;
-          a.dd = 0.24 + Math.min(0.16, (r.width * r.height) / 3000000);
+          a.dd = 0.6 + Math.min(0.2, (r.width * r.height) / 1500000);
           it.box = makeBox(a.c);
           if (Math.random() < 0.28) spawnGuide(r);
         }
       } else if (a.st === 2) {
         a.t += dt;
         var p2 = Math.min(1, a.t / a.dd);
-        var e2 = 1 - Math.pow(1 - p2, 3);
+        var e2 = easeIO(p2);
         a.x = clamp(r.left + r.width * e2, 4, vw - 22);
         a.y = clamp(r.top + r.height * e2, 4, vh - 30);
         if (p2 >= 1) {
@@ -874,7 +877,7 @@
         }
       } else if (a.st === 4) {
         a.t += dt;
-        var fd = it.kind === 'text' ? it.typeDur : it.kind === 'media' ? 1.7 : it.kind === 'wrap' ? 0.05 : 0.38;
+        var fd = it.kind === 'text' ? it.typeDur : it.kind === 'media' ? 1.7 : it.kind === 'wrap' ? 0.05 : 0.4;
         if (it.kind === 'text') typeTo(it, Math.min(1, a.t / fd));
         if (a.t >= fd + (it.kind === 'text' ? 0.42 : 0.1)) {
           restoreTexts(it);
@@ -883,6 +886,7 @@
           releaseBox(it);
           a.it = null;
           a.st = 0;
+          a.rest = rnd(0.12, 0.18);
           a.vx = 0;
         }
       }
@@ -897,7 +901,7 @@
       var h = rc.height;
       var ag = lit.ag;
       if (ag.st === 2) {
-        var pp = 1 - Math.pow(1 - Math.min(1, ag.t / ag.dd), 3);
+        var pp = easeIO(Math.min(1, ag.t / ag.dd));
         w *= pp;
         h *= pp;
       }
@@ -917,10 +921,14 @@
     var at = -1;
     for (var fi = 0; fi < bLive.length; fi++) if (bLive[fi].state < 3 && bLive[fi].top > at) at = bLive[fi].top;
     if (at < 0) at = ft;
-    var tgt = Math.max(bScroll, clamp(Math.min(at, ft + vh * 0.45) - vh * 0.3, 0, maxS));
+    var nxt = bItems[bNext];
+    var probe = Math.max(at, nxt ? nxt.top : at);
+    if (bGoal == null) bGoal = bScroll;
+    if (Math.abs(bGoal - bScroll) < 1 && probe - bScroll > vh * 0.65) bGoal = Math.max(bGoal, clamp(Math.min(probe, ft + vh * 0.5) - vh * 0.3, 0, maxS));
+    var tgt = bGoal;
     if (bReduce) bScroll = tgt;
-    else bScroll += (tgt - bScroll) * Math.min(1, rdt * 2.6);
-    if (Math.abs(tgt - bScroll) < 0.3) bScroll = tgt;
+    else bScroll += (tgt - bScroll) * Math.min(1, rdt * 2);
+    if (Math.abs(tgt - bScroll) < 0.5) bScroll = tgt;
     if (Math.abs(bScroll - sy) > 0.4) window.scrollTo(0, bScroll);
 
     if (bDone >= bItems.length) {
