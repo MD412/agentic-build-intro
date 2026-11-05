@@ -172,6 +172,7 @@
   var bSpeed = 1;
   var bCap = 24;
   var bScroll = 0;
+  var bReduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   var bDone = 0;
   var bGuides = 0;
   var skipEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
@@ -808,7 +809,7 @@
       if (a.st === 0) {
         while (bNext < bItems.length && bItems[bNext].state !== 0) bNext++;
         var nx = bItems[bNext];
-        if (nx && nx.top < sy + vh * 1.1) {
+        if (nx && nx.top < sy + vh * 0.8) {
           nx.state = 1;
           nx.ag = a;
           a.it = nx;
@@ -913,8 +914,12 @@
 
     while (bFront < bItems.length && bItems[bFront].state === 3) bFront++;
     var ft = bFront < bItems.length ? bItems[bFront].top : maxS + vh;
-    var tgt = clamp(ft - vh * 0.2, 0, maxS);
-    bScroll += (tgt - bScroll) * Math.min(1, rdt * 3.2);
+    var at = -1;
+    for (var fi = 0; fi < bLive.length; fi++) if (bLive[fi].state < 3 && bLive[fi].top > at) at = bLive[fi].top;
+    if (at < 0) at = ft;
+    var tgt = Math.max(bScroll, clamp(Math.min(at, ft + vh * 0.45) - vh * 0.3, 0, maxS));
+    if (bReduce) bScroll = tgt;
+    else bScroll += (tgt - bScroll) * Math.min(1, rdt * 2.6);
     if (Math.abs(tgt - bScroll) < 0.3) bScroll = tgt;
     if (Math.abs(bScroll - sy) > 0.4) window.scrollTo(0, bScroll);
 
